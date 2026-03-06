@@ -14,7 +14,7 @@ from mnemebrain.models import (
     TruthState,
 )
 
-__version__ = "0.1.0"
+__version__ = "1.0.0a1"
 
 __all__ = [
     "Brain",

@@ -9,7 +9,6 @@ import httpx
 from mnemebrain.models import (
     AskResult,
     BeliefResult,
-    BeliefType,
     EvidenceDetail,
     EvidenceInput,
     ExplanationResult,

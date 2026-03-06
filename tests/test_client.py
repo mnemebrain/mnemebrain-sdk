@@ -1,11 +1,9 @@
 """Tests for the MnemeBrain Python SDK client."""
 
 import httpx
-import pytest
 import respx
 
-from mnemebrain import Brain, MnemeBrainClient, EvidenceInput
-
+from mnemebrain import Brain, EvidenceInput, MnemeBrainClient
 
 BASE_URL = "http://localhost:8000"
 
@@ -26,23 +24,28 @@ class TestMnemeBrainClient:
     @respx.mock
     def test_believe(self):
         respx.post(f"{BASE_URL}/believe").mock(
-            return_value=httpx.Response(200, json={
-                "id": "abc-123",
-                "truth_state": "true",
-                "confidence": 0.85,
-                "conflict": False,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "abc-123",
+                    "truth_state": "true",
+                    "confidence": 0.85,
+                    "conflict": False,
+                },
+            )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
         result = client.believe(
             claim="user is vegetarian",
-            evidence=[EvidenceInput(
-                source_ref="msg_12",
-                content="They said no meat please",
-                polarity="supports",
-                weight=0.8,
-                reliability=0.9,
-            )],
+            evidence=[
+                EvidenceInput(
+                    source_ref="msg_12",
+                    content="They said no meat please",
+                    polarity="supports",
+                    weight=0.8,
+                    reliability=0.9,
+                )
+            ],
         )
         assert result.id == "abc-123"
         assert result.truth_state == "true"
@@ -53,16 +56,21 @@ class TestMnemeBrainClient:
     @respx.mock
     def test_search(self):
         respx.get(f"{BASE_URL}/search").mock(
-            return_value=httpx.Response(200, json={
-                "results": [{
-                    "belief_id": "b-1",
-                    "claim": "user is vegetarian",
-                    "truth_state": "true",
-                    "confidence": 0.85,
-                    "similarity": 0.92,
-                    "rank_score": 0.88,
-                }]
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {
+                            "belief_id": "b-1",
+                            "claim": "user is vegetarian",
+                            "truth_state": "true",
+                            "confidence": 0.85,
+                            "similarity": 0.92,
+                            "rank_score": 0.88,
+                        }
+                    ]
+                },
+            )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
         result = client.search(query="vegetarian")
@@ -74,21 +82,26 @@ class TestMnemeBrainClient:
     @respx.mock
     def test_explain(self):
         respx.get(f"{BASE_URL}/explain").mock(
-            return_value=httpx.Response(200, json={
-                "claim": "user is vegetarian",
-                "truth_state": "true",
-                "confidence": 0.85,
-                "supporting": [{
-                    "id": "e-1",
-                    "source_ref": "msg_12",
-                    "content": "no meat",
-                    "polarity": "supports",
-                    "weight": 0.8,
-                    "reliability": 0.9,
-                }],
-                "attacking": [],
-                "expired": [],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "claim": "user is vegetarian",
+                    "truth_state": "true",
+                    "confidence": 0.85,
+                    "supporting": [
+                        {
+                            "id": "e-1",
+                            "source_ref": "msg_12",
+                            "content": "no meat",
+                            "polarity": "supports",
+                            "weight": 0.8,
+                            "reliability": 0.9,
+                        }
+                    ],
+                    "attacking": [],
+                    "expired": [],
+                },
+            )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
         result = client.explain("user is vegetarian")
@@ -111,12 +124,17 @@ class TestMnemeBrainClient:
     @respx.mock
     def test_retract(self):
         respx.post(f"{BASE_URL}/retract").mock(
-            return_value=httpx.Response(200, json=[{
-                "id": "b-1",
-                "truth_state": "neither",
-                "confidence": 0.0,
-                "conflict": False,
-            }])
+            return_value=httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": "b-1",
+                        "truth_state": "neither",
+                        "confidence": 0.0,
+                        "conflict": False,
+                    }
+                ],
+            )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
         results = client.retract("e-1")
@@ -127,12 +145,15 @@ class TestMnemeBrainClient:
     @respx.mock
     def test_revise(self):
         respx.post(f"{BASE_URL}/revise").mock(
-            return_value=httpx.Response(200, json={
-                "id": "b-1",
-                "truth_state": "true",
-                "confidence": 0.95,
-                "conflict": False,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "b-1",
+                    "truth_state": "true",
+                    "confidence": 0.95,
+                    "conflict": False,
+                },
+            )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
         result = client.revise(
@@ -149,18 +170,34 @@ class TestMnemeBrainClient:
         client.close()
 
 
+class TestMnemeBrainClientContextManager:
+    """Test MnemeBrainClient as context manager."""
+
+    @respx.mock
+    def test_context_manager(self):
+        respx.get(f"{BASE_URL}/health").mock(
+            return_value=httpx.Response(200, json={"status": "ok"})
+        )
+        with MnemeBrainClient(base_url=BASE_URL) as client:
+            result = client.health()
+            assert result == {"status": "ok"}
+
+
 class TestBrain:
     """Tests for the high-level Brain API."""
 
     @respx.mock
     def test_believe_simple(self):
         respx.post(f"{BASE_URL}/believe").mock(
-            return_value=httpx.Response(200, json={
-                "id": "abc-123",
-                "truth_state": "true",
-                "confidence": 0.9,
-                "conflict": False,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "abc-123",
+                    "truth_state": "true",
+                    "confidence": 0.9,
+                    "conflict": False,
+                },
+            )
         )
         brain = Brain(agent_id="test-agent", base_url=BASE_URL)
         result = brain.believe(
@@ -174,6 +211,7 @@ class TestBrain:
         # Verify the request payload
         req = respx.calls.last.request
         import json
+
         body = json.loads(req.content)
         assert body["claim"] == "Paris is the capital of France"
         assert body["source_agent"] == "test-agent"
@@ -182,28 +220,57 @@ class TestBrain:
         brain.close()
 
     @respx.mock
+    def test_believe_without_evidence(self):
+        respx.post(f"{BASE_URL}/believe").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": "abc-456",
+                    "truth_state": "true",
+                    "confidence": 0.8,
+                    "conflict": False,
+                },
+            )
+        )
+        brain = Brain(agent_id="test-agent", base_url=BASE_URL)
+        result = brain.believe(claim="sky is blue")
+        assert result.id == "abc-456"
+
+        # Verify auto evidence was used
+        import json
+
+        body = json.loads(respx.calls.last.request.content)
+        assert len(body["evidence"]) == 1
+        assert body["evidence"][0]["source_ref"] == "auto"
+        assert body["belief_type"] == "inference"
+        brain.close()
+
+    @respx.mock
     def test_ask(self):
         respx.get(f"{BASE_URL}/search").mock(
-            return_value=httpx.Response(200, json={
-                "results": [
-                    {
-                        "belief_id": "b-1",
-                        "claim": "Paris: Paris is the capital of France.",
-                        "truth_state": "true",
-                        "confidence": 0.9,
-                        "similarity": 0.88,
-                        "rank_score": 0.89,
-                    },
-                    {
-                        "belief_id": "b-2",
-                        "claim": "France: France is in Europe.",
-                        "truth_state": "true",
-                        "confidence": 0.85,
-                        "similarity": 0.72,
-                        "rank_score": 0.78,
-                    },
-                ]
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {
+                            "belief_id": "b-1",
+                            "claim": "Paris: Paris is the capital of France.",
+                            "truth_state": "true",
+                            "confidence": 0.9,
+                            "similarity": 0.88,
+                            "rank_score": 0.89,
+                        },
+                        {
+                            "belief_id": "b-2",
+                            "claim": "France: France is in Europe.",
+                            "truth_state": "true",
+                            "confidence": 0.85,
+                            "similarity": 0.72,
+                            "rank_score": 0.78,
+                        },
+                    ]
+                },
+            )
         )
         brain = Brain(agent_id="test-agent", base_url=BASE_URL)
         result = brain.ask(question="What is the capital of France?")
