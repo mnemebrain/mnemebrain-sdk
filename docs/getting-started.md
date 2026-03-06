@@ -59,6 +59,21 @@ Designed for experiments and quick agent integration. Simplified `believe()` / `
 
 ### MnemeBrainClient (low-level)
 
-Full control over the REST API. Direct access to `believe()`, `explain()`, `search()`, `retract()`, `revise()`.
+Full control over the REST API. Direct access to `believe()`, `explain()`, `search()`, `retract()`, `revise()`, `list_beliefs()`.
+
+### WorkingMemoryFrame (multi-step reasoning)
+
+For complex reasoning tasks that span multiple steps, open a frame, load beliefs, use a scratchpad for intermediate results, then commit or discard:
+
+```python
+from mnemebrain import MnemeBrainClient
+
+with MnemeBrainClient() as client:
+    frame = client.frame_open(query="should we refactor auth?")
+    client.frame_add(frame.frame_id, "auth uses JWT")
+    client.frame_scratchpad(frame.frame_id, "step_1", "JWT is well established")
+    ctx = client.frame_context(frame.frame_id)
+    client.frame_commit(frame.frame_id, new_beliefs=[...])
+```
 
 See the [API Reference](api-reference.md) for details.

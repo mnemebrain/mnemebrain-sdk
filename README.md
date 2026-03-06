@@ -4,6 +4,7 @@
 [![PyPI version](https://badge.fury.io/py/mnemebrain.svg)](https://pypi.org/project/mnemebrain/)
 [![Python](https://img.shields.io/pypi/pyversions/mnemebrain.svg)](https://pypi.org/project/mnemebrain/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://github.com/mnemebrain/mnemebrain-sdk)
 
 Python client for [MnemeBrain](https://mnemebrain.ai) — biological belief memory for LLM agents.
 
@@ -76,6 +77,10 @@ with MnemeBrainClient(base_url="http://localhost:8000") as client:
     for hit in results.results:
         print(f"{hit.claim} (sim={hit.similarity:.2f})")
 
+    # List beliefs with filters
+    page = client.list_beliefs(truth_state="true", belief_type="preference", limit=20)
+    print(f"Total: {page.total}")
+
     # Revise with new evidence
     client.revise(
         belief_id=result.id,
@@ -90,6 +95,39 @@ with MnemeBrainClient(base_url="http://localhost:8000") as client:
 
     # Retract evidence
     client.retract(evidence_id="<uuid>")
+```
+
+### WorkingMemoryFrame (multi-step reasoning)
+
+Ephemeral context buffer for complex reasoning tasks:
+
+```python
+with MnemeBrainClient(base_url="http://localhost:8000") as client:
+    # Open a frame with a reasoning query
+    frame = client.frame_open(
+        query="should we refactor auth?",
+        preload_claims=["auth uses JWT"],
+        ttl_seconds=600,
+    )
+
+    # Add more beliefs as reasoning progresses
+    client.frame_add(frame.frame_id, "JWT tokens expire after 1 hour")
+
+    # Use the scratchpad for intermediate reasoning
+    client.frame_scratchpad(frame.frame_id, "step_1", "JWT is well established")
+
+    # Get full context at any point
+    ctx = client.frame_context(frame.frame_id)
+    print(f"Beliefs: {len(ctx.beliefs)}, Steps: {ctx.step_count}")
+
+    # Commit new beliefs back to the graph
+    client.frame_commit(
+        frame.frame_id,
+        new_beliefs=[{"claim": "auth refactor not needed", "evidence": [], "belief_type": "inference"}],
+    )
+
+    # Or close without committing
+    # client.frame_close(frame.frame_id)
 ```
 
 ## API Reference
@@ -112,6 +150,13 @@ with MnemeBrainClient(base_url="http://localhost:8000") as client:
 | `search(query, limit, alpha, conflict_policy)` | Semantic search with ranking |
 | `retract(evidence_id)` | Invalidate evidence and recompute beliefs |
 | `revise(belief_id, evidence)` | Add new evidence to an existing belief |
+| `list_beliefs(truth_state, belief_type, tag, ...)` | List beliefs with filters and pagination |
+| `frame_open(query, preload_claims, ttl_seconds)` | Open a working memory frame |
+| `frame_add(frame_id, claim)` | Add a belief to an active frame |
+| `frame_scratchpad(frame_id, key, value)` | Write to frame scratchpad |
+| `frame_context(frame_id)` | Get full frame context |
+| `frame_commit(frame_id, new_beliefs, revisions)` | Commit frame to belief graph |
+| `frame_close(frame_id)` | Close frame without committing |
 
 ### Models
 
@@ -123,6 +168,12 @@ with MnemeBrainClient(base_url="http://localhost:8000") as client:
 | `SearchResult` | Search hit (belief_id, claim, similarity, rank_score) |
 | `AskResult` | Brain.ask result (query_id, retrieved_beliefs) |
 | `RetrievedBelief` | Simplified belief (claim, confidence, similarity) |
+| `BeliefListItem` | Belief in list response (id, claim, type, confidence, timestamps) |
+| `BeliefListResponse` | Paginated belief list (beliefs, total, offset, limit) |
+| `BeliefSnapshot` | Belief snapshot in a frame (belief_id, claim, confidence, conflict) |
+| `FrameOpenResult` | Frame open result (frame_id, beliefs_loaded, conflicts, snapshots) |
+| `FrameContextResult` | Frame context (query, beliefs, scratchpad, conflicts, step_count) |
+| `FrameCommitResult` | Frame commit result (frame_id, beliefs_created, beliefs_revised) |
 
 ### Enums
 
@@ -131,6 +182,8 @@ with MnemeBrainClient(base_url="http://localhost:8000") as client:
 | `TruthState` | `TRUE`, `FALSE`, `BOTH` (contradiction), `NEITHER` (insufficient) |
 | `BeliefType` | `FACT`, `PREFERENCE`, `INFERENCE`, `PREDICTION` |
 | `Polarity` | `SUPPORTS`, `ATTACKS` |
+
+Full documentation: [docs/api-reference.md](docs/api-reference.md)
 
 ## Proof the Claim: 7B + MnemeBrain vs 70B
 
