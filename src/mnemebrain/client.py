@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+from typing import Any
 from uuid import uuid4
 
 import httpx
 
 from mnemebrain.models import (
     AskResult,
+    BeliefListItem,
+    BeliefListResponse,
     BeliefResult,
+    BeliefSnapshot,
     EvidenceDetail,
     EvidenceInput,
     ExplanationResult,
+    FrameCommitResult,
+    FrameContextResult,
+    FrameOpenResult,
     RetrievedBelief,
     SearchResponse,
     SearchResult,
@@ -146,6 +153,141 @@ class MnemeBrainClient:
             confidence=data["confidence"],
             conflict=data["conflict"],
         )
+
+    def list_beliefs(
+        self,
+        truth_state: str | None = None,
+        belief_type: str | None = None,
+        tag: str | None = None,
+        min_confidence: float = 0.0,
+        max_confidence: float = 1.0,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> BeliefListResponse:
+        """List beliefs with optional filters."""
+        params: dict[str, Any] = {
+            "min_confidence": min_confidence,
+            "max_confidence": max_confidence,
+            "limit": limit,
+            "offset": offset,
+        }
+        if truth_state is not None:
+            params["truth_state"] = truth_state
+        if belief_type is not None:
+            params["belief_type"] = belief_type
+        if tag is not None:
+            params["tag"] = tag
+        resp = self._client.get("/beliefs", params=params)
+        resp.raise_for_status()
+        data = resp.json()
+        return BeliefListResponse(
+            beliefs=[
+                BeliefListItem(
+                    id=b["id"],
+                    claim=b["claim"],
+                    belief_type=b["belief_type"],
+                    truth_state=b["truth_state"],
+                    confidence=b["confidence"],
+                    tag_count=b["tag_count"],
+                    evidence_count=b["evidence_count"],
+                    created_at=b["created_at"],
+                    last_revised=b["last_revised"],
+                )
+                for b in data["beliefs"]
+            ],
+            total=data["total"],
+            offset=data["offset"],
+            limit=data["limit"],
+        )
+
+    # -- Phase 2: WorkingMemoryFrame endpoints --
+
+    def _parse_snapshot(self, s: dict) -> BeliefSnapshot:
+        return BeliefSnapshot(
+            belief_id=s["belief_id"],
+            claim=s["claim"],
+            truth_state=s["truth_state"],
+            confidence=s["confidence"],
+            belief_type=s["belief_type"],
+            evidence_count=s["evidence_count"],
+            conflict=s["conflict"],
+        )
+
+    def frame_open(
+        self,
+        query: str,
+        preload_claims: list[str] | None = None,
+        ttl_seconds: int = 300,
+        source_agent: str = "",
+    ) -> FrameOpenResult:
+        """Open a working memory frame for multi-step reasoning."""
+        payload: dict[str, Any] = {
+            "query": query,
+            "preload_claims": preload_claims or [],
+            "ttl_seconds": ttl_seconds,
+            "source_agent": source_agent,
+        }
+        resp = self._client.post("/frame/open", json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        return FrameOpenResult(
+            frame_id=data["frame_id"],
+            beliefs_loaded=data["beliefs_loaded"],
+            conflicts=data["conflicts"],
+            snapshots=[self._parse_snapshot(s) for s in data["snapshots"]],
+        )
+
+    def frame_add(self, frame_id: str, claim: str) -> BeliefSnapshot:
+        """Add a belief to an active frame."""
+        resp = self._client.post(f"/frame/{frame_id}/add", json={"claim": claim})
+        resp.raise_for_status()
+        return self._parse_snapshot(resp.json())
+
+    def frame_scratchpad(self, frame_id: str, key: str, value: Any) -> None:
+        """Write to the frame's scratchpad."""
+        resp = self._client.post(
+            f"/frame/{frame_id}/scratchpad",
+            json={"key": key, "value": value},
+        )
+        resp.raise_for_status()
+
+    def frame_context(self, frame_id: str) -> FrameContextResult:
+        """Get the full active context of a frame."""
+        resp = self._client.get(f"/frame/{frame_id}/context")
+        resp.raise_for_status()
+        data = resp.json()
+        return FrameContextResult(
+            query=data["query"],
+            beliefs=[self._parse_snapshot(s) for s in data["beliefs"]],
+            scratchpad=data["scratchpad"],
+            conflicts=[self._parse_snapshot(s) for s in data["conflicts"]],
+            step_count=data["step_count"],
+        )
+
+    def frame_commit(
+        self,
+        frame_id: str,
+        new_beliefs: list[dict] | None = None,
+        revisions: list[dict] | None = None,
+    ) -> FrameCommitResult:
+        """Commit frame results back to the belief graph."""
+        payload: dict[str, Any] = {
+            "new_beliefs": new_beliefs or [],
+            "revisions": revisions or [],
+        }
+        resp = self._client.post(f"/frame/{frame_id}/commit", json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        return FrameCommitResult(
+            frame_id=data["frame_id"],
+            beliefs_created=data["beliefs_created"],
+            beliefs_revised=data["beliefs_revised"],
+        )
+
+    def frame_close(self, frame_id: str) -> None:
+        """Close a frame without committing."""
+        resp = self._client.delete(f"/frame/{frame_id}")
+        resp.raise_for_status()
 
     def close(self) -> None:
         self._client.close()

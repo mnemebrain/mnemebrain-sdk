@@ -170,6 +170,169 @@ class TestMnemeBrainClient:
         client.close()
 
 
+class TestListBeliefs:
+    """Tests for list_beliefs endpoint."""
+
+    @respx.mock
+    def test_list_beliefs(self):
+        respx.get(f"{BASE_URL}/beliefs").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "beliefs": [
+                        {
+                            "id": "b-1",
+                            "claim": "user is vegetarian",
+                            "belief_type": "preference",
+                            "truth_state": "true",
+                            "confidence": 0.92,
+                            "tag_count": 2,
+                            "evidence_count": 3,
+                            "created_at": "2026-01-15T10:00:00+00:00",
+                            "last_revised": "2026-01-18T14:30:00+00:00",
+                        }
+                    ],
+                    "total": 1,
+                    "offset": 0,
+                    "limit": 50,
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.list_beliefs(truth_state="true", belief_type="preference", tag="food")
+        assert result.total == 1
+        assert len(result.beliefs) == 1
+        assert result.beliefs[0].claim == "user is vegetarian"
+        assert result.beliefs[0].belief_type == "preference"
+        assert result.beliefs[0].tag_count == 2
+        client.close()
+
+    @respx.mock
+    def test_list_beliefs_no_filters(self):
+        respx.get(f"{BASE_URL}/beliefs").mock(
+            return_value=httpx.Response(
+                200,
+                json={"beliefs": [], "total": 0, "offset": 0, "limit": 50},
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.list_beliefs()
+        assert result.total == 0
+        assert result.beliefs == []
+        client.close()
+
+
+class TestWorkingMemoryFrame:
+    """Tests for Phase 2 WorkingMemoryFrame endpoints."""
+
+    SNAPSHOT = {
+        "belief_id": "b-1",
+        "claim": "auth uses JWT",
+        "truth_state": "true",
+        "confidence": 0.92,
+        "belief_type": "fact",
+        "evidence_count": 3,
+        "conflict": False,
+    }
+
+    @respx.mock
+    def test_frame_open(self):
+        respx.post(f"{BASE_URL}/frame/open").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "frame_id": "f-123",
+                    "beliefs_loaded": 1,
+                    "conflicts": 0,
+                    "snapshots": [self.SNAPSHOT],
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.frame_open(
+            query="should we refactor auth?",
+            preload_claims=["auth uses JWT"],
+            ttl_seconds=600,
+            source_agent="planner",
+        )
+        assert result.frame_id == "f-123"
+        assert result.beliefs_loaded == 1
+        assert result.conflicts == 0
+        assert len(result.snapshots) == 1
+        assert result.snapshots[0].claim == "auth uses JWT"
+        client.close()
+
+    @respx.mock
+    def test_frame_add(self):
+        respx.post(f"{BASE_URL}/frame/f-123/add").mock(
+            return_value=httpx.Response(200, json=self.SNAPSHOT)
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.frame_add("f-123", "auth uses JWT")
+        assert result.belief_id == "b-1"
+        assert result.confidence == 0.92
+        client.close()
+
+    @respx.mock
+    def test_frame_scratchpad(self):
+        respx.post(f"{BASE_URL}/frame/f-123/scratchpad").mock(return_value=httpx.Response(204))
+        client = MnemeBrainClient(base_url=BASE_URL)
+        client.frame_scratchpad("f-123", "step_1", "JWT is well established")
+        client.close()
+
+    @respx.mock
+    def test_frame_context(self):
+        respx.get(f"{BASE_URL}/frame/f-123/context").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "query": "should we refactor auth?",
+                    "beliefs": [self.SNAPSHOT],
+                    "scratchpad": {"step_1": "JWT is well established"},
+                    "conflicts": [],
+                    "step_count": 1,
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.frame_context("f-123")
+        assert result.query == "should we refactor auth?"
+        assert len(result.beliefs) == 1
+        assert result.scratchpad["step_1"] == "JWT is well established"
+        assert result.step_count == 1
+        assert result.conflicts == []
+        client.close()
+
+    @respx.mock
+    def test_frame_commit(self):
+        respx.post(f"{BASE_URL}/frame/f-123/commit").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "frame_id": "f-123",
+                    "beliefs_created": 1,
+                    "beliefs_revised": 0,
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.frame_commit(
+            "f-123",
+            new_beliefs=[{"claim": "new fact", "evidence": [], "belief_type": "fact"}],
+        )
+        assert result.frame_id == "f-123"
+        assert result.beliefs_created == 1
+        assert result.beliefs_revised == 0
+        client.close()
+
+    @respx.mock
+    def test_frame_close(self):
+        respx.delete(f"{BASE_URL}/frame/f-123").mock(return_value=httpx.Response(204))
+        client = MnemeBrainClient(base_url=BASE_URL)
+        client.frame_close("f-123")
+        client.close()
+
+
 class TestMnemeBrainClientContextManager:
     """Test MnemeBrainClient as context manager."""
 

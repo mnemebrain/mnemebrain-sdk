@@ -104,6 +104,74 @@ class SearchResponse:
 
 
 @dataclass
+class BeliefListItem:
+    """A belief in a list response."""
+
+    id: str
+    claim: str
+    belief_type: str
+    truth_state: str
+    confidence: float
+    tag_count: int
+    evidence_count: int
+    created_at: str
+    last_revised: str
+
+
+@dataclass
+class BeliefListResponse:
+    """Result from list_beliefs operation."""
+
+    beliefs: list[BeliefListItem] = field(default_factory=list)
+    total: int = 0
+    offset: int = 0
+    limit: int = 50
+
+
+@dataclass
+class BeliefSnapshot:
+    """A belief snapshot in a working memory frame."""
+
+    belief_id: str
+    claim: str
+    truth_state: str
+    confidence: float
+    belief_type: str
+    evidence_count: int
+    conflict: bool
+
+
+@dataclass
+class FrameOpenResult:
+    """Result from opening a working memory frame."""
+
+    frame_id: str
+    beliefs_loaded: int
+    conflicts: int
+    snapshots: list[BeliefSnapshot] = field(default_factory=list)
+
+
+@dataclass
+class FrameContextResult:
+    """Result from getting frame context."""
+
+    query: str
+    beliefs: list[BeliefSnapshot] = field(default_factory=list)
+    scratchpad: dict = field(default_factory=dict)
+    conflicts: list[BeliefSnapshot] = field(default_factory=list)
+    step_count: int = 0
+
+
+@dataclass
+class FrameCommitResult:
+    """Result from committing a frame."""
+
+    frame_id: str
+    beliefs_created: int
+    beliefs_revised: int
+
+
+@dataclass
 class RetrievedBelief:
     """A belief retrieved by Brain.ask() — simplified view for experiments."""
 
