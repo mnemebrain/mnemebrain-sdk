@@ -249,7 +249,7 @@ class TestWorkingMemoryFrame:
             )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
-        result = client.frame_open(
+        result = client.frames.open(
             query_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
             top_k=20,
             ttl_seconds=600,
@@ -284,7 +284,7 @@ class TestWorkingMemoryFrame:
             )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
-        result = client.frame_open(
+        result = client.frames.open(
             query_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
             top_k=5,
             ttl_seconds=300,
@@ -303,7 +303,7 @@ class TestWorkingMemoryFrame:
             return_value=httpx.Response(200, json=self.SNAPSHOT)
         )
         client = MnemeBrainClient(base_url=BASE_URL)
-        result = client.frame_add("f-123", "auth uses JWT")
+        result = client.frames.add("f-123", "auth uses JWT")
         assert result.belief_id == "b-1"
         assert result.confidence == 0.92
         client.close()
@@ -312,7 +312,7 @@ class TestWorkingMemoryFrame:
     def test_frame_scratchpad(self):
         respx.post(f"{BASE_URL}/frame/f-123/scratchpad").mock(return_value=httpx.Response(204))
         client = MnemeBrainClient(base_url=BASE_URL)
-        client.frame_scratchpad("f-123", "step_1", "JWT is well established")
+        client.frames.scratchpad("f-123", "step_1", "JWT is well established")
         client.close()
 
     @respx.mock
@@ -331,7 +331,7 @@ class TestWorkingMemoryFrame:
             )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
-        result = client.frame_context("f-123")
+        result = client.frames.context("f-123")
         assert result.active_query == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
         assert result.active_goal is None
         assert len(result.beliefs) == 1
@@ -353,7 +353,7 @@ class TestWorkingMemoryFrame:
             )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
-        result = client.frame_commit(
+        result = client.frames.commit(
             "f-123",
             new_beliefs=[{"claim": "new fact", "evidence": [], "belief_type": "fact"}],
         )
@@ -366,7 +366,7 @@ class TestWorkingMemoryFrame:
     def test_frame_close(self):
         respx.delete(f"{BASE_URL}/frame/f-123").mock(return_value=httpx.Response(204))
         client = MnemeBrainClient(base_url=BASE_URL)
-        client.frame_close("f-123")
+        client.frames.close("f-123")
         client.close()
 
 
@@ -519,6 +519,62 @@ class TestBrain:
         assert result.truth_state == "true"
         brain.close()
 
+    @respx.mock
+    def test_consolidate(self):
+        respx.post(f"{BASE_URL}/consolidate").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "semantic_beliefs_created": 1,
+                    "episodics_pruned": 2,
+                    "clusters_found": 1,
+                },
+            )
+        )
+        brain = Brain(agent_id="test-agent", base_url=BASE_URL)
+        result = brain.consolidate()
+        assert result.semantic_beliefs_created == 1
+        brain.close()
+
+    @respx.mock
+    def test_get_memory_tier(self):
+        respx.get(f"{BASE_URL}/memory_tier/b-1%231").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "belief_id": "b-1#1",
+                    "memory_tier": "semantic",
+                    "consolidated_from_count": 3,
+                },
+            )
+        )
+        brain = Brain(agent_id="test-agent", base_url=BASE_URL)
+        result = brain.get_memory_tier("b-1#1")
+        assert result.memory_tier == "semantic"
+        brain.close()
+
+    @respx.mock
+    def test_multihop(self):
+        respx.post(f"{BASE_URL}/query_multihop").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {
+                            "belief_id": "b-1",
+                            "claim": "sky is blue",
+                            "confidence": 0.9,
+                            "truth_state": "true",
+                        }
+                    ]
+                },
+            )
+        )
+        brain = Brain(agent_id="test-agent", base_url=BASE_URL)
+        result = brain.multihop("what color is the sky?")
+        assert len(result.results) == 1
+        brain.close()
+
 
 class TestRevisionEvidenceItemToDict:
     def test_to_dict_without_id(self):
@@ -547,7 +603,7 @@ class TestPhase5Client:
             return_value=httpx.Response(200, json={"status": "ok"})
         )
         client = MnemeBrainClient(base_url=BASE_URL)
-        client.reset()  # should not raise
+        client.debug.reset()  # should not raise
         client.close()
 
     @respx.mock
@@ -556,7 +612,7 @@ class TestPhase5Client:
             return_value=httpx.Response(200, json={"status": "ok"})
         )
         client = MnemeBrainClient(base_url=BASE_URL)
-        client.set_time_offset(days=30)
+        client.debug.set_time_offset(days=30)
         req = respx.calls.last.request
         import json
 
@@ -684,7 +740,7 @@ class TestBenchmarkEndpoints:
             )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
-        result = client.benchmark_sandbox_fork("test-scenario")
+        result = client.benchmark.sandbox_fork("test-scenario")
         assert result.sandbox_id == "sb-1"
         assert result.canonical_unchanged is True
         client.close()
@@ -702,7 +758,7 @@ class TestBenchmarkEndpoints:
             )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
-        result = client.benchmark_sandbox_assume("sb-1", "b-1", "false")
+        result = client.benchmark.sandbox_assume("sb-1", "b-1", "false")
         assert result.resolved_truth_state == "false"
         client.close()
 
@@ -719,7 +775,7 @@ class TestBenchmarkEndpoints:
             )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
-        result = client.benchmark_sandbox_resolve("sb-1", "b-1#1")
+        result = client.benchmark.sandbox_resolve("sb-1", "b-1#1")
         assert result.resolved_truth_state == "true"
         client.close()
 
@@ -729,7 +785,7 @@ class TestBenchmarkEndpoints:
             return_value=httpx.Response(200, json={"status": "ok"})
         )
         client = MnemeBrainClient(base_url=BASE_URL)
-        client.benchmark_sandbox_discard("sb-1")  # should not raise
+        client.benchmark.sandbox_discard("sb-1")  # should not raise
         client.close()
 
     @respx.mock
@@ -745,7 +801,7 @@ class TestBenchmarkEndpoints:
             )
         )
         client = MnemeBrainClient(base_url=BASE_URL)
-        result = client.benchmark_attack("b-1", "b-2", "undermining", 0.5)
+        result = client.benchmark.attack("b-1", "b-2", "undermining", 0.5)
         assert result.edge_id == "e-1"
         assert result.attacker_id == "b-1"
         assert result.target_id == "b-2"
