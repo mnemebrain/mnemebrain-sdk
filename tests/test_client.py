@@ -492,6 +492,7 @@ class TestPhase5Client:
         client.set_time_offset(days=30)
         req = respx.calls.last.request
         import json
+
         body = json.loads(req.content)
         assert body["days"] == 30
         client.close()

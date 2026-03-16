@@ -77,8 +77,10 @@ class TestSandboxClient:
             json={
                 "belief_changes": [
                     {
-                        "belief_id": "b1", "field": "truth_state",
-                        "old_value": "true", "new_value": "false",
+                        "belief_id": "b1",
+                        "field": "truth_state",
+                        "old_value": "true",
+                        "new_value": "false",
                     }
                 ],
                 "evidence_invalidations": ["ev1"],
@@ -118,9 +120,7 @@ class TestSandboxClient:
 
     @respx.mock
     def test_believe(self, client):
-        respx.post(f"{V4}/sandbox/sb-1/believe").respond(
-            201, json={"belief_id": "b-new"}
-        )
+        respx.post(f"{V4}/sandbox/sb-1/believe").respond(201, json={"belief_id": "b-new"})
         result = client.sandbox.believe("sb-1", "sky is blue")
         assert result == {"belief_id": "b-new"}
 
@@ -131,9 +131,7 @@ class TestSandboxClient:
 
     @respx.mock
     def test_attack(self, client):
-        respx.post(f"{V4}/sandbox/sb-1/attack").respond(
-            201, json={"attack_id": "a-tmp"}
-        )
+        respx.post(f"{V4}/sandbox/sb-1/attack").respond(201, json={"attack_id": "a-tmp"})
         result = client.sandbox.attack("sb-1", "b1", "b2", "contradicts")
         assert result == {"attack_id": "a-tmp"}
 
@@ -361,10 +359,15 @@ class TestPolicyClient:
                 "created_at": "2026-01-01T00:00:00Z",
                 "last_updated": "2026-01-01T00:00:00Z",
                 "superseded_by": None,
-                "steps": [{
-                    "step_id": 1, "action": "check token",
-                    "tool": None, "conditions": [], "fallback": None,
-                }],
+                "steps": [
+                    {
+                        "step_id": 1,
+                        "action": "check token",
+                        "tool": None,
+                        "conditions": [],
+                        "fallback": None,
+                    }
+                ],
                 "applicability": {},
             },
         )

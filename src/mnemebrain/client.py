@@ -174,9 +174,7 @@ class SandboxClient:
         )
         resp.raise_for_status()
 
-    def believe(
-        self, sandbox_id: str, claim: str, belief_type: str = "fact"
-    ) -> dict[str, str]:
+    def believe(self, sandbox_id: str, claim: str, belief_type: str = "fact") -> dict[str, str]:
         resp = self._http.post(
             f"{_V4_PREFIX}/sandbox/{sandbox_id}/believe",
             json={"claim": claim, "belief_type": belief_type},
@@ -257,9 +255,7 @@ class SandboxClient:
         payload: dict[str, Any] = {"commit_mode": commit_mode}
         if selected_ids is not None:
             payload["selected_ids"] = selected_ids
-        resp = self._http.post(
-            f"{_V4_PREFIX}/sandbox/{sandbox_id}/commit", json=payload
-        )
+        resp = self._http.post(f"{_V4_PREFIX}/sandbox/{sandbox_id}/commit", json=payload)
         resp.raise_for_status()
         d = resp.json()
         return SandboxCommitResult(
@@ -273,9 +269,7 @@ class SandboxClient:
         resp.raise_for_status()
 
     def explain(self, sandbox_id: str, belief_id: str) -> SandboxExplainResult:
-        resp = self._http.get(
-            f"{_V4_PREFIX}/sandbox/{sandbox_id}/explain/{belief_id}"
-        )
+        resp = self._http.get(f"{_V4_PREFIX}/sandbox/{sandbox_id}/explain/{belief_id}")
         resp.raise_for_status()
         d = resp.json()
         return SandboxExplainResult(
@@ -288,12 +282,8 @@ class SandboxClient:
             source=d["source"],
         )
 
-    def evaluate_goal(
-        self, sandbox_id: str, goal_id: str
-    ) -> GoalEvaluationResult:
-        resp = self._http.post(
-            f"{_V4_PREFIX}/sandbox/{sandbox_id}/goal/{goal_id}/evaluate"
-        )
+    def evaluate_goal(self, sandbox_id: str, goal_id: str) -> GoalEvaluationResult:
+        resp = self._http.post(f"{_V4_PREFIX}/sandbox/{sandbox_id}/goal/{goal_id}/evaluate")
         resp.raise_for_status()
         d = resp.json()
         return GoalEvaluationResult(
@@ -366,12 +356,8 @@ class RevisionClient:
     ) -> RevisionResult:
         payload: dict[str, Any] = {
             "incoming_belief_id": incoming_belief_id,
-            "conflicting_evidence": [
-                e.to_dict() for e in (conflicting_evidence or [])
-            ],
-            "incoming_evidence": [
-                e.to_dict() for e in (incoming_evidence or [])
-            ],
+            "conflicting_evidence": [e.to_dict() for e in (conflicting_evidence or [])],
+            "incoming_evidence": [e.to_dict() for e in (incoming_evidence or [])],
             "agent_id": agent_id,
         }
         resp = self._http.post(f"{_V4_PREFIX}/revise", json=payload)
@@ -415,18 +401,13 @@ class AttackClient:
         resp.raise_for_status()
         return [_parse_attack_edge(e) for e in resp.json()]
 
-    def get_chain(
-        self, belief_id: str, max_depth: int = 2
-    ) -> list[list[AttackEdgeResult]]:
+    def get_chain(self, belief_id: str, max_depth: int = 2) -> list[list[AttackEdgeResult]]:
         resp = self._http.get(
             f"{_V4_PREFIX}/beliefs/{belief_id}/attack-chain",
             params={"max_depth": max_depth},
         )
         resp.raise_for_status()
-        return [
-            [_parse_attack_edge(e) for e in chain]
-            for chain in resp.json()["chains"]
-        ]
+        return [[_parse_attack_edge(e) for e in chain] for chain in resp.json()["chains"]]
 
     def deactivate(self, edge_id: str) -> None:
         resp = self._http.delete(f"{_V4_PREFIX}/attacks/{edge_id}")
@@ -448,9 +429,7 @@ class ReconsolidationClient:
         resp = self._http.post(f"{_V4_PREFIX}/reconsolidation/run")
         resp.raise_for_status()
         d = resp.json()
-        return ReconsolidationRunResult(
-            processed=d["processed"], timestamp=d["timestamp"]
-        )
+        return ReconsolidationRunResult(processed=d["processed"], timestamp=d["timestamp"])
 
 
 class GoalClient:
@@ -503,9 +482,7 @@ class GoalClient:
         )
 
     def update_status(self, goal_id: str, status: str) -> GoalResult:
-        resp = self._http.put(
-            f"{_V4_PREFIX}/goals/{goal_id}/status", json={"status": status}
-        )
+        resp = self._http.put(f"{_V4_PREFIX}/goals/{goal_id}/status", json={"status": status})
         resp.raise_for_status()
         return _parse_goal(resp.json())
 
@@ -953,9 +930,7 @@ class MnemeBrainClient:
             canonical_unchanged=d["canonical_unchanged"],
         )
 
-    def benchmark_sandbox_resolve(
-        self, sandbox_id: str, belief_id: str
-    ) -> BenchmarkSandboxResult:
+    def benchmark_sandbox_resolve(self, sandbox_id: str, belief_id: str) -> BenchmarkSandboxResult:
         """Resolve a belief in a benchmark sandbox."""
         encoded_id = belief_id.replace("#", "%23")
         resp = self._client.get(f"/benchmark/sandbox/{sandbox_id}/resolve/{encoded_id}")
@@ -973,16 +948,22 @@ class MnemeBrainClient:
         resp.raise_for_status()
 
     def benchmark_attack(
-        self, attacker_id: str, target_id: str,
-        attack_type: str = "undermining", weight: float = 0.5
+        self,
+        attacker_id: str,
+        target_id: str,
+        attack_type: str = "undermining",
+        weight: float = 0.5,
     ) -> BenchmarkAttackResult:
         """Create a benchmark attack edge."""
-        resp = self._client.post("/benchmark/attack", json={
-            "attacker_id": attacker_id,
-            "target_id": target_id,
-            "attack_type": attack_type,
-            "weight": weight,
-        })
+        resp = self._client.post(
+            "/benchmark/attack",
+            json={
+                "attacker_id": attacker_id,
+                "target_id": target_id,
+                "attack_type": attack_type,
+                "weight": weight,
+            },
+        )
         resp.raise_for_status()
         d = resp.json()
         return BenchmarkAttackResult(

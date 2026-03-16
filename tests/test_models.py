@@ -134,17 +134,13 @@ class TestDataclasses:
 
 class TestPhase5Models:
     def test_consolidate_result(self):
-        r = ConsolidateResult(
-            semantic_beliefs_created=3, episodics_pruned=5, clusters_found=2
-        )
+        r = ConsolidateResult(semantic_beliefs_created=3, episodics_pruned=5, clusters_found=2)
         assert r.semantic_beliefs_created == 3
         assert r.episodics_pruned == 5
         assert r.clusters_found == 2
 
     def test_memory_tier_result(self):
-        r = MemoryTierResult(
-            belief_id="b-1", memory_tier="semantic", consolidated_from_count=4
-        )
+        r = MemoryTierResult(belief_id="b-1", memory_tier="semantic", consolidated_from_count=4)
         assert r.memory_tier == "semantic"
         assert r.consolidated_from_count == 4
 
@@ -176,7 +172,5 @@ class TestPhase5Models:
         assert r.canonical_unchanged is True
 
     def test_benchmark_attack_result(self):
-        r = BenchmarkAttackResult(
-            edge_id="e-1", attacker_id="b-1", target_id="b-2"
-        )
+        r = BenchmarkAttackResult(edge_id="e-1", attacker_id="b-1", target_id="b-2")
         assert r.edge_id == "e-1"
