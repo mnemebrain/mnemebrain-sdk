@@ -57,7 +57,7 @@ from mnemebrain.models import (
     TruthState,
 )
 
-__version__ = "1.0.0a3"
+__version__ = "1.0.0a4"
 
 __all__ = [
     # Clients
