@@ -462,3 +462,80 @@ class TestLazyProperties:
         assert client._policies is None
         pl = client.policies
         assert pl is client.policies
+
+
+class TestOptionalParamBranches:
+    """Cover optional-parameter branches that default tests skip."""
+
+    SANDBOX_JSON = {
+        "id": "sb-x",
+        "frame_id": "f-1",
+        "scenario_label": "test",
+        "status": "active",
+        "created_at": "2026-01-01T00:00:00Z",
+        "expires_at": "2026-01-01T00:10:00Z",
+    }
+
+    @respx.mock
+    def test_fork_with_frame_id(self, client):
+        respx.post(f"{V4}/sandbox/fork").respond(201, json=self.SANDBOX_JSON)
+        result = client.sandbox.fork(scenario_label="test", frame_id="f-1")
+        assert result.frame_id == "f-1"
+
+    @respx.mock
+    def test_quick_with_frame_id(self, client):
+        respx.post(f"{V4}/sandbox/quick").respond(201, json=self.SANDBOX_JSON)
+        result = client.sandbox.quick(frame_id="f-1")
+        assert result.frame_id == "f-1"
+
+    @respx.mock
+    def test_commit_with_selected_ids(self, client):
+        respx.post(f"{V4}/sandbox/sb-1/commit").respond(
+            200,
+            json={
+                "sandbox_id": "sb-1",
+                "committed_belief_ids": ["b1"],
+                "conflicts": [],
+            },
+        )
+        result = client.sandbox.commit("sb-1", selected_ids=["b1"])
+        assert result.committed_belief_ids == ["b1"]
+
+    @respx.mock
+    def test_set_policy_with_limits(self, client):
+        respx.post(f"{V4}/revision/policy").respond(
+            200,
+            json={
+                "policy_name": "recency",
+                "max_retraction_depth": 5,
+                "max_retractions": 20,
+            },
+        )
+        result = client.revision.set_policy("recency", max_retraction_depth=5, max_retractions=20)
+        assert result.max_retraction_depth == 5
+        assert result.max_retractions == 20
+
+    @respx.mock
+    def test_goal_create_with_optional_fields(self, client):
+        respx.post(f"{V4}/goals").respond(
+            201,
+            json={
+                "id": "g2",
+                "goal": "ship v2",
+                "owner": "agent-1",
+                "priority": 0.9,
+                "status": "active",
+                "created_at": "2026-01-01T00:00:00Z",
+                "deadline": "2026-06-01",
+                "success_criteria": {"tests": "pass"},
+            },
+        )
+        result = client.goals.create(
+            "ship v2",
+            "agent-1",
+            priority=0.9,
+            success_criteria={"tests": "pass"},
+            deadline="2026-06-01",
+        )
+        assert result.id == "g2"
+        assert result.deadline == "2026-06-01"

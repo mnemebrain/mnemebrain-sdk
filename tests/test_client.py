@@ -271,6 +271,33 @@ class TestWorkingMemoryFrame:
         client.close()
 
     @respx.mock
+    def test_frame_open_with_goal_id(self):
+        respx.post(f"{BASE_URL}/frame/open").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "frame_id": "f-456",
+                    "beliefs_loaded": 0,
+                    "conflicts": 0,
+                    "snapshots": [],
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.frame_open(
+            query_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            top_k=5,
+            ttl_seconds=300,
+            goal_id="g-1",
+        )
+        assert result.frame_id == "f-456"
+        import json
+
+        body = json.loads(respx.calls.last.request.content)
+        assert body["goal_id"] == "g-1"
+        client.close()
+
+    @respx.mock
     def test_frame_add(self):
         respx.post(f"{BASE_URL}/frame/f-123/add").mock(
             return_value=httpx.Response(200, json=self.SNAPSHOT)
@@ -469,6 +496,46 @@ class TestBrain:
         with Brain(agent_id="test", base_url=BASE_URL) as brain:
             result = brain._client.health()
             assert result["status"] == "ok"
+
+    @respx.mock
+    def test_explain(self):
+        respx.get(f"{BASE_URL}/explain").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "belief_id": "b-1",
+                    "claim": "sky is blue",
+                    "truth_state": "true",
+                    "confidence": 0.9,
+                    "supporting": [],
+                    "attacking": [],
+                    "expired": [],
+                },
+            )
+        )
+        brain = Brain(agent_id="test-agent", base_url=BASE_URL)
+        result = brain.explain("sky is blue")
+        assert result.claim == "sky is blue"
+        assert result.truth_state == "true"
+        brain.close()
+
+
+class TestRevisionEvidenceItemToDict:
+    def test_to_dict_without_id(self):
+        from mnemebrain.models import RevisionEvidenceItem
+
+        ev = RevisionEvidenceItem(source_ref="src", content="data")
+        d = ev.to_dict()
+        assert "id" not in d
+        assert d["source_ref"] == "src"
+        assert d["content"] == "data"
+
+    def test_to_dict_with_id(self):
+        from mnemebrain.models import RevisionEvidenceItem
+
+        ev = RevisionEvidenceItem(source_ref="src", content="data", id="ev-1")
+        d = ev.to_dict()
+        assert d["id"] == "ev-1"
 
 
 class TestPhase5Client:
