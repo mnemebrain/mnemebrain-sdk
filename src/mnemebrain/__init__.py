@@ -1,30 +1,75 @@
 """MnemeBrain Python SDK — biological belief memory for LLM agents."""
 
-from mnemebrain.client import Brain, MnemeBrainClient
+from mnemebrain.client import (
+    AttackClient,
+    Brain,
+    GoalClient,
+    MnemeBrainClient,
+    PolicyClient,
+    ReconsolidationClient,
+    RevisionClient,
+    SandboxClient,
+)
 from mnemebrain.models import (
     AskResult,
+    AttackEdgeResult,
+    AttackType,
+    BeliefChangeDetail,
     BeliefListItem,
     BeliefListResponse,
     BeliefResult,
     BeliefSnapshot,
     BeliefType,
+    BenchmarkAttackResult,
+    BenchmarkSandboxResult,
+    CommitMode,
+    ConsolidateResult,
     EvidenceInput,
     ExplanationResult,
     FrameCommitResult,
     FrameContextResult,
     FrameOpenResult,
+    GoalEvaluationResult,
+    GoalResult,
+    GoalStatus,
+    MemoryTierResult,
+    MultihopResponse,
+    MultihopResultItem,
     Polarity,
+    PolicyResult,
+    PolicyStatus,
+    PolicyStepResult,
+    ReconsolidationQueueResult,
+    ReconsolidationRunResult,
     RetrievedBelief,
+    RevisionAuditEntry,
+    RevisionEvidenceItem,
+    RevisionPolicyResult,
+    RevisionResult,
+    SandboxCommitResult,
+    SandboxContextResult,
+    SandboxDiffResult,
+    SandboxExplainResult,
+    SandboxResult,
+    SandboxStatus,
     SearchResponse,
     SearchResult,
     TruthState,
 )
 
-__version__ = "1.0.0a1"
+__version__ = "1.0.0a3"
 
 __all__ = [
+    # Clients
     "Brain",
     "MnemeBrainClient",
+    "SandboxClient",
+    "RevisionClient",
+    "AttackClient",
+    "ReconsolidationClient",
+    "GoalClient",
+    "PolicyClient",
+    # Original models
     "AskResult",
     "BeliefListItem",
     "BeliefListResponse",
@@ -41,4 +86,40 @@ __all__ = [
     "SearchResponse",
     "SearchResult",
     "TruthState",
+    # V4 enums
+    "SandboxStatus",
+    "CommitMode",
+    "AttackType",
+    "GoalStatus",
+    "PolicyStatus",
+    # V4 models — Sandbox
+    "SandboxResult",
+    "SandboxContextResult",
+    "BeliefChangeDetail",
+    "SandboxDiffResult",
+    "SandboxCommitResult",
+    "SandboxExplainResult",
+    # V4 models — Revision
+    "RevisionPolicyResult",
+    "RevisionAuditEntry",
+    "RevisionEvidenceItem",
+    "RevisionResult",
+    # V4 models — Attacks
+    "AttackEdgeResult",
+    # V4 models — Reconsolidation
+    "ReconsolidationQueueResult",
+    "ReconsolidationRunResult",
+    # V4 models — Goals
+    "GoalResult",
+    "GoalEvaluationResult",
+    # V4 models — Policy
+    "PolicyStepResult",
+    "PolicyResult",
+    # Phase 5 models
+    "ConsolidateResult",
+    "MemoryTierResult",
+    "MultihopResponse",
+    "MultihopResultItem",
+    "BenchmarkSandboxResult",
+    "BenchmarkAttackResult",
 ]

@@ -250,16 +250,24 @@ class TestWorkingMemoryFrame:
         )
         client = MnemeBrainClient(base_url=BASE_URL)
         result = client.frame_open(
-            query="should we refactor auth?",
-            preload_claims=["auth uses JWT"],
+            query_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            top_k=20,
             ttl_seconds=600,
-            source_agent="planner",
         )
         assert result.frame_id == "f-123"
         assert result.beliefs_loaded == 1
         assert result.conflicts == 0
         assert len(result.snapshots) == 1
         assert result.snapshots[0].claim == "auth uses JWT"
+
+        # Verify request payload
+        import json
+
+        body = json.loads(respx.calls.last.request.content)
+        assert body["query_id"] == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        assert body["top_k"] == 20
+        assert body["ttl_seconds"] == 600
+        assert "goal_id" not in body
         client.close()
 
     @respx.mock
@@ -286,7 +294,8 @@ class TestWorkingMemoryFrame:
             return_value=httpx.Response(
                 200,
                 json={
-                    "query": "should we refactor auth?",
+                    "active_query": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "active_goal": None,
                     "beliefs": [self.SNAPSHOT],
                     "scratchpad": {"step_1": "JWT is well established"},
                     "conflicts": [],
@@ -296,7 +305,8 @@ class TestWorkingMemoryFrame:
         )
         client = MnemeBrainClient(base_url=BASE_URL)
         result = client.frame_context("f-123")
-        assert result.query == "should we refactor auth?"
+        assert result.active_query == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        assert result.active_goal is None
         assert len(result.beliefs) == 1
         assert result.scratchpad["step_1"] == "JWT is well established"
         assert result.step_count == 1
@@ -443,10 +453,12 @@ class TestBrain:
         brain.close()
 
     @respx.mock
-    def test_feedback_noop(self):
+    def test_feedback_not_implemented(self):
         brain = Brain(agent_id="test-agent", base_url=BASE_URL)
-        # feedback is a no-op — should not raise
-        brain.feedback("some-query-id", outcome="COMPLETED")
+        import pytest
+
+        with pytest.raises(NotImplementedError):
+            brain.feedback("some-query-id", outcome="COMPLETED")
         brain.close()
 
     @respx.mock
@@ -457,3 +469,216 @@ class TestBrain:
         with Brain(agent_id="test", base_url=BASE_URL) as brain:
             result = brain._client.health()
             assert result["status"] == "ok"
+
+
+class TestPhase5Client:
+    """Tests for Phase 5 endpoints on MnemeBrainClient."""
+
+    @respx.mock
+    def test_reset(self):
+        respx.post(f"{BASE_URL}/reset").mock(
+            return_value=httpx.Response(200, json={"status": "ok"})
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        client.reset()  # should not raise
+        client.close()
+
+    @respx.mock
+    def test_set_time_offset(self):
+        respx.post(f"{BASE_URL}/debug/set_time_offset").mock(
+            return_value=httpx.Response(200, json={"status": "ok"})
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        client.set_time_offset(days=30)
+        req = respx.calls.last.request
+        import json
+        body = json.loads(req.content)
+        assert body["days"] == 30
+        client.close()
+
+    @respx.mock
+    def test_consolidate(self):
+        respx.post(f"{BASE_URL}/consolidate").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "semantic_beliefs_created": 2,
+                    "episodics_pruned": 5,
+                    "clusters_found": 3,
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.consolidate()
+        assert result.semantic_beliefs_created == 2
+        assert result.episodics_pruned == 5
+        assert result.clusters_found == 3
+        client.close()
+
+    @respx.mock
+    def test_get_memory_tier(self):
+        respx.get(f"{BASE_URL}/memory_tier/b-1%231").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "belief_id": "b-1#1",
+                    "memory_tier": "semantic",
+                    "consolidated_from_count": 4,
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.get_memory_tier("b-1#1")
+        assert result.memory_tier == "semantic"
+        assert result.consolidated_from_count == 4
+        client.close()
+
+    @respx.mock
+    def test_query_multihop(self):
+        respx.post(f"{BASE_URL}/query_multihop").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {
+                            "belief_id": "b-1",
+                            "claim": "Paris is capital of France",
+                            "confidence": 0.95,
+                            "truth_state": "true",
+                        },
+                        {
+                            "belief_id": "b-2",
+                            "claim": "France is in Europe",
+                            "confidence": 0.88,
+                            "truth_state": "true",
+                        },
+                    ]
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.query_multihop("What is the capital of France?")
+        assert len(result.results) == 2
+        assert result.results[0].claim == "Paris is capital of France"
+        assert result.results[1].belief_id == "b-2"
+        client.close()
+
+    @respx.mock
+    def test_query_multihop_empty(self):
+        respx.post(f"{BASE_URL}/query_multihop").mock(
+            return_value=httpx.Response(200, json={"results": []})
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.query_multihop("nonexistent topic")
+        assert result.results == []
+        client.close()
+
+    @respx.mock
+    def test_retract_with_results_wrapper(self):
+        """Test that retract handles the {results: [...]} response format."""
+        respx.post(f"{BASE_URL}/retract").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {
+                            "id": "b-1",
+                            "truth_state": "neither",
+                            "confidence": 0.0,
+                            "conflict": False,
+                        }
+                    ],
+                    "affected_beliefs": 1,
+                    "truth_states_changed": 1,
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        results = client.retract("e-1")
+        assert len(results) == 1
+        assert results[0].truth_state == "neither"
+        client.close()
+
+
+class TestBenchmarkEndpoints:
+    """Tests for benchmark sandbox/attack endpoints on MnemeBrainClient."""
+
+    @respx.mock
+    def test_benchmark_sandbox_fork(self):
+        respx.post(f"{BASE_URL}/benchmark/sandbox/fork").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "sandbox_id": "sb-1",
+                    "resolved_truth_state": "",
+                    "canonical_unchanged": True,
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.benchmark_sandbox_fork("test-scenario")
+        assert result.sandbox_id == "sb-1"
+        assert result.canonical_unchanged is True
+        client.close()
+
+    @respx.mock
+    def test_benchmark_sandbox_assume(self):
+        respx.post(f"{BASE_URL}/benchmark/sandbox/sb-1/assume").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "sandbox_id": "sb-1",
+                    "resolved_truth_state": "false",
+                    "canonical_unchanged": True,
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.benchmark_sandbox_assume("sb-1", "b-1", "false")
+        assert result.resolved_truth_state == "false"
+        client.close()
+
+    @respx.mock
+    def test_benchmark_sandbox_resolve(self):
+        respx.get(f"{BASE_URL}/benchmark/sandbox/sb-1/resolve/b-1%231").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "sandbox_id": "sb-1",
+                    "resolved_truth_state": "true",
+                    "canonical_unchanged": True,
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.benchmark_sandbox_resolve("sb-1", "b-1#1")
+        assert result.resolved_truth_state == "true"
+        client.close()
+
+    @respx.mock
+    def test_benchmark_sandbox_discard(self):
+        respx.delete(f"{BASE_URL}/benchmark/sandbox/sb-1").mock(
+            return_value=httpx.Response(200, json={"status": "ok"})
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        client.benchmark_sandbox_discard("sb-1")  # should not raise
+        client.close()
+
+    @respx.mock
+    def test_benchmark_attack(self):
+        respx.post(f"{BASE_URL}/benchmark/attack").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "edge_id": "e-1",
+                    "attacker_id": "b-1",
+                    "target_id": "b-2",
+                },
+            )
+        )
+        client = MnemeBrainClient(base_url=BASE_URL)
+        result = client.benchmark_attack("b-1", "b-2", "undermining", 0.5)
+        assert result.edge_id == "e-1"
+        assert result.attacker_id == "b-1"
+        assert result.target_id == "b-2"
+        client.close()

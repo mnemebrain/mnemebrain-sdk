@@ -4,9 +4,15 @@ from mnemebrain.models import (
     AskResult,
     BeliefResult,
     BeliefType,
+    BenchmarkAttackResult,
+    BenchmarkSandboxResult,
+    ConsolidateResult,
     EvidenceDetail,
     EvidenceInput,
     ExplanationResult,
+    MemoryTierResult,
+    MultihopResponse,
+    MultihopResultItem,
     Polarity,
     RetrievedBelief,
     SearchResponse,
@@ -124,3 +130,53 @@ class TestDataclasses:
     def test_ask_result_defaults(self):
         r = AskResult(query_id="q1")
         assert r.retrieved_beliefs == []
+
+
+class TestPhase5Models:
+    def test_consolidate_result(self):
+        r = ConsolidateResult(
+            semantic_beliefs_created=3, episodics_pruned=5, clusters_found=2
+        )
+        assert r.semantic_beliefs_created == 3
+        assert r.episodics_pruned == 5
+        assert r.clusters_found == 2
+
+    def test_memory_tier_result(self):
+        r = MemoryTierResult(
+            belief_id="b-1", memory_tier="semantic", consolidated_from_count=4
+        )
+        assert r.memory_tier == "semantic"
+        assert r.consolidated_from_count == 4
+
+    def test_multihop_result_item(self):
+        item = MultihopResultItem(
+            belief_id="b-1", claim="Paris is capital", confidence=0.9, truth_state="true"
+        )
+        assert item.belief_id == "b-1"
+
+    def test_multihop_response_defaults(self):
+        r = MultihopResponse()
+        assert r.results == []
+
+    def test_multihop_response_with_results(self):
+        r = MultihopResponse(
+            results=[
+                MultihopResultItem(
+                    belief_id="b-1", claim="test", confidence=0.8, truth_state="true"
+                )
+            ]
+        )
+        assert len(r.results) == 1
+
+    def test_benchmark_sandbox_result(self):
+        r = BenchmarkSandboxResult(
+            sandbox_id="sb-1", resolved_truth_state="false", canonical_unchanged=True
+        )
+        assert r.sandbox_id == "sb-1"
+        assert r.canonical_unchanged is True
+
+    def test_benchmark_attack_result(self):
+        r = BenchmarkAttackResult(
+            edge_id="e-1", attacker_id="b-1", target_id="b-2"
+        )
+        assert r.edge_id == "e-1"
